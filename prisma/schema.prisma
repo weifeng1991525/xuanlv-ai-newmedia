@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String
+  avatar         String?
+  role           Role      @default(USER)
+  phone          String?   @unique
+  isBanned       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  memberships    Membership[]
+  orders         Order[]
+  generationLogs GenerationLog[]
+  adminLogs      AdminLog[]
+  userPrompts    UserPrompt[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Membership {
+  id               String           @id @default(cuid())
+  userId           String
+  tier             MembershipTier   @default(FREE)
+  creditsRemaining Int              @default(10)
+  creditsTotal     Int              @default(10)
+  startDate        DateTime
+  endDate          DateTime
+  isActive         Boolean          @default(true)
+  autoRenew        Boolean          @default(false)
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+enum MembershipTier {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  type            OrderType   @default(SUBSCRIPTION)
+  amount          Int
+  currency        String      @default("CNY")
+  status          OrderStatus @default(PENDING)
+  membershipTier  MembershipTier?
+  creditsAdded    Int?
+  paymentMethod   String      @default("wechat_pay")
+  transactionId   String?     @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("orders")
+}
+
+enum OrderType {
+  SUBSCRIPTION
+  CREDIT_TOPUP
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Prompt {
+  id                String    @id @default(cuid())
+  name              String
+  description       String    @default("")
+  category          PromptCategory @default(GENERAL)
+  systemPrompt      String
+  userPromptTemplate String   @default("")
+  variables         String[]  @default([])
+  model             String    @default("gpt-image-2")
+  temperature       Float     @default(0.7)
+  maxTokens         Int       @default(2000)
+  isPublished       Boolean   @default(false)
+  usageCount        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("prompts")
+}
+
+enum PromptCategory {
+  COMIC
+  CUSTOM_IMAGE
+  GENERAL
+}
+
+model GenerationLog {
+  id           String         @id @default(cuid())
+  userId       String
+  type         GenerationType
+  input        String         @db.Text
+  output       String         @db.Text
+  imageUrl     String?
+  tokensUsed   Int            @default(0)
+  duration     Int            @default(0)
+  status       GenStatus      @default(SUCCESS)
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("generation_logs")
+}
+
+enum GenerationType {
+  COMIC
+  CUSTOM_IMAGE
+}
+
+enum GenStatus {
+  SUCCESS
+  FAILED
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String
+  target    String
+  details   String   @default("")
+  ipAddress String   @default("")
+  createdAt DateTime @default(now())
+
+  admin     User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+model UserPrompt {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  description  String    @default("")
+  systemPrompt String
+  category     String    @default("GENERAL")
+  usageCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_prompts")
+}
